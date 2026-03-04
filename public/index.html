@@ -71,11 +71,20 @@
           </div>
           <div>
             <label class="block mb-1 font-medium">შაბლონი *</label>
-            <select name="template_choice" id="templateChoice" required class="w-full border rounded-xl px-4 py-3">
-              <option value="girlfriend">Girlfriend</option>
-              <option value="wife">Wife</option>
-              <option value="map-of-stars">The Map of Stars</option>
-            </select>
+            <div class="grid gap-2">
+              <label class="flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer">
+                <input type="radio" name="template_choice" value="girlfriend" checked>
+                <span class="font-medium">Girlfriend</span>
+              </label>
+              <label class="flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer">
+                <input type="radio" name="template_choice" value="wife">
+                <span class="font-medium">Wife</span>
+              </label>
+              <label class="flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer">
+                <input type="radio" name="template_choice" value="map-of-stars">
+                <span class="font-medium">The Map of Stars</span>
+              </label>
+            </div>
           </div>
         </div>
 
@@ -162,7 +171,7 @@
 
   <script>
     const form = document.getElementById('generatorForm');
-    const templateChoice = document.getElementById('templateChoice');
+    const templateChoices = Array.from(document.querySelectorAll('input[name="template_choice"]'));
     const genericFields = document.getElementById('genericFields');
     const mapFields = document.getElementById('mapFields');
     const loading = document.getElementById('loading');
@@ -192,11 +201,12 @@
     addReason.addEventListener('click', () => addReasonInput(''));
 
     function updateMode() {
-      const isMap = templateChoice.value === 'map-of-stars';
+      const selected = document.querySelector('input[name="template_choice"]:checked');
+      const isMap = selected && selected.value === 'map-of-stars';
       genericFields.classList.toggle('hidden', isMap);
       mapFields.classList.toggle('hidden', !isMap);
     }
-    templateChoice.addEventListener('change', updateMode);
+    templateChoices.forEach((el) => el.addEventListener('change', updateMode));
     updateMode();
 
     async function uploadToCloudinary(file, cloudName, uploadPreset, folder, resourceType) {
