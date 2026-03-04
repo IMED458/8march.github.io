@@ -193,13 +193,33 @@
     function addPhotoLinkInput(value = '') {
       const count = photoLinksWrap.querySelectorAll('input[name="photo_link_item"]').length;
       if (count >= 15) return;
+      const row = document.createElement('div');
+      row.className = 'flex gap-2';
+
       const input = document.createElement('input');
       input.type = 'url';
       input.name = 'photo_link_item';
       input.value = value;
       input.placeholder = `ფოტო ლინკი ${count + 1} (Cloudinary secure_url)`;
-      input.className = 'w-full border rounded-xl px-4 py-3';
-      photoLinksWrap.appendChild(input);
+      input.className = 'flex-1 border rounded-xl px-4 py-3';
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.textContent = 'წაშლა';
+      removeBtn.className = 'px-3 py-2 border rounded-lg text-sm text-red-700 hover:bg-red-50';
+      removeBtn.addEventListener('click', () => {
+        const rows = photoLinksWrap.querySelectorAll('.photo-link-row');
+        if (rows.length <= 1) {
+          input.value = '';
+          return;
+        }
+        row.remove();
+      });
+
+      row.classList.add('photo-link-row');
+      row.appendChild(input);
+      row.appendChild(removeBtn);
+      photoLinksWrap.appendChild(row);
     }
     addPhotoLinkInput('');
     addPhotoLink.addEventListener('click', () => addPhotoLinkInput(''));
