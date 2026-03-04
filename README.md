@@ -20,6 +20,11 @@ npm run dev
 
 ბრაუზერში გახსენი: `http://localhost:3000`
 
+## მნიშვნელოვანი
+- GitHub Pages-ზე ეს პროექტი სრულად ვერ იმუშავებს, რადგან `/api/generate` საჭიროებს Node backend-ს.
+- Pages-ზე მაქსიმუმ UI გამოჩნდება, მაგრამ გენერაცია ვერ გაეშვება.
+- სრულად სამუშაოდ გაუშვი Node სერვერით ან Deploy გააკეთე backend-support პლატფორმაზე (მაგ. Render/Railway/Fly.io).
+
 ## ENV (optional)
 - `PORT` default: `3000`
 - `BASE_URL` მაგალითად: `https://your-domain.com`
