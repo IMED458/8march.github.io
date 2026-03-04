@@ -18,14 +18,29 @@
   <div id="loading" class="hidden fixed inset-0 z-50 bg-white/80 backdrop-blur-sm items-center justify-center">
     <div class="text-center">
       <div class="text-6xl animate-bounce">⏳</div>
-      <p class="mt-3 font-semibold">მუშავდება...</p>
+      <p class="mt-3 font-semibold">იტვირთება და გენერირდება...</p>
     </div>
   </div>
 
   <main class="max-w-6xl mx-auto px-4 py-10 space-y-8">
     <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <h1 class="text-3xl font-bold">8 მარტის საიტის გენერატორი (Developers)</h1>
-      <p class="text-slate-600 mt-2">აირჩიე შაბლონი, ატვირთე ფოტოები/ვიდეო და სისტემა ავტომატურად დაგენერირებს გვერდს, ლინკს და QR კოდს.</p>
+      <p class="text-slate-600 mt-2">ატვირთვები მიდის პირდაპირ Cloudinary-ზე, მერე გენერატორი ქმნის ახალ საიტს და აბრუნებს ლინკს + QR-ს.</p>
+    </section>
+
+    <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 class="text-2xl font-bold mb-4">Cloudinary (Firebase flow compatible)</h2>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <label class="block mb-1 font-medium">Cloud name</label>
+          <input id="cloudName" class="w-full border rounded-xl px-4 py-3" value="drxw7g9s2">
+        </div>
+        <div>
+          <label class="block mb-1 font-medium">Upload preset (unsigned)</label>
+          <input id="uploadPreset" class="w-full border rounded-xl px-4 py-3" value="8march">
+        </div>
+      </div>
+      <p class="text-xs text-slate-500 mt-2">საჭიროა Cloudinary-ში unsigned preset ჩართული იყოს.</p>
     </section>
 
     <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -48,7 +63,7 @@
 
     <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <h2 class="text-2xl font-bold mb-4">შევსება</h2>
-      <form id="generatorForm" class="space-y-5" enctype="multipart/form-data">
+      <form id="generatorForm" class="space-y-5">
         <div class="grid md:grid-cols-2 gap-4">
           <div>
             <label class="block mb-1 font-medium">საიტის სახელი (slug) *</label>
@@ -84,7 +99,7 @@
           <textarea name="story_or_memory" rows="3" placeholder="ჩვენი ისტორია / მოგონება" class="w-full border rounded-xl px-4 py-3"></textarea>
 
           <div class="space-y-2">
-            <label class="font-medium">მიზეზები</label>
+            <label class="font-medium">მიზეზები (პლუსით დაამატე რამდენიც გინდა)</label>
             <div id="reasonsWrap" class="space-y-2"></div>
             <button id="addReason" type="button" class="px-3 py-2 border rounded-lg text-sm">+ მიზეზის დამატება</button>
           </div>
@@ -122,11 +137,12 @@
         <div class="grid md:grid-cols-2 gap-4">
           <div>
             <label class="block mb-1 font-medium">ფოტოები (მაქს 15) *</label>
-            <input id="photosInput" type="file" name="photos" multiple accept="image/*,.heic,.HEIC,.heif,.HEIF" required class="w-full border rounded-xl px-4 py-3">
+            <input id="photosInput" type="file" multiple accept="image/*,.heic,.HEIC,.heif,.HEIF" required class="w-full border rounded-xl px-4 py-3">
+            <p class="text-xs text-slate-500 mt-1">ფოტოები აიტვირთება Cloudinary-ზე და შეინახება ლინკებით.</p>
           </div>
           <div>
             <label class="block mb-1 font-medium">ვიდეო (არჩევითი)</label>
-            <input type="file" name="video" accept="video/*" class="w-full border rounded-xl px-4 py-3">
+            <input id="videoInput" type="file" accept="video/*" class="w-full border rounded-xl px-4 py-3">
           </div>
         </div>
 
@@ -157,6 +173,9 @@
     const reasonsWrap = document.getElementById('reasonsWrap');
     const addReason = document.getElementById('addReason');
     const photosInput = document.getElementById('photosInput');
+    const videoInput = document.getElementById('videoInput');
+    const cloudNameInput = document.getElementById('cloudName');
+    const uploadPresetInput = document.getElementById('uploadPreset');
 
     function addReasonInput(value = '') {
       const count = reasonsWrap.querySelectorAll('input[name="reasons"]').length;
@@ -180,12 +199,42 @@
     templateChoice.addEventListener('change', updateMode);
     updateMode();
 
+    async function uploadToCloudinary(file, cloudName, uploadPreset, folder, resourceType) {
+      const endpoint = `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`;
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('upload_preset', uploadPreset);
+      fd.append('folder', folder);
+
+      const resp = await fetch(endpoint, { method: 'POST', body: fd });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.secure_url) {
+        throw new Error(data.error?.message || 'Cloudinary upload failed');
+      }
+      return data.secure_url;
+    }
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       resultSection.classList.add('hidden');
       statusText.textContent = '';
 
-      if ((photosInput.files || []).length > 15) {
+      const photos = Array.from(photosInput.files || []);
+      const video = (videoInput.files || [])[0] || null;
+      const cloudName = cloudNameInput.value.trim();
+      const uploadPreset = uploadPresetInput.value.trim();
+
+      if (!cloudName || !uploadPreset) {
+        statusText.textContent = 'Cloudinary მონაცემები სავალდებულოა.';
+        statusText.className = 'text-sm text-red-700';
+        return;
+      }
+      if (!photos.length) {
+        statusText.textContent = 'მინიმუმ 1 ფოტო უნდა ატვირთო.';
+        statusText.className = 'text-sm text-red-700';
+        return;
+      }
+      if (photos.length > 15) {
         statusText.textContent = 'მაქსიმუმ 15 ფოტო.';
         statusText.className = 'text-sm text-red-700';
         return;
@@ -193,20 +242,74 @@
 
       loading.classList.remove('hidden');
       loading.classList.add('flex');
-      statusText.textContent = 'იგზავნება...';
       statusText.className = 'text-sm text-slate-600';
 
       try {
+        const slug = (form.querySelector('input[name="site_slug"]').value || '').trim();
+        const folder = `gift_uploads/${slug || Date.now()}`;
+
+        const photoLinks = [];
+        for (let i = 0; i < photos.length; i++) {
+          statusText.textContent = `იტვირთება ფოტო ${i + 1}/${photos.length}...`;
+          const link = await uploadToCloudinary(photos[i], cloudName, uploadPreset, `${folder}/photos`, 'image');
+          photoLinks.push(link);
+        }
+
+        let videoLink = '';
+        if (video) {
+          statusText.textContent = 'იტვირთება ვიდეო...';
+          videoLink = await uploadToCloudinary(video, cloudName, uploadPreset, `${folder}/video`, 'video');
+        }
+
         const fd = new FormData(form);
-        const res = await fetch('/api/generate', { method: 'POST', body: fd });
-        const data = await res.json();
+        const payload = {
+          site_slug: fd.get('site_slug') || '',
+          template_choice: fd.get('template_choice') || 'girlfriend',
+          sender_name: fd.get('sender_name') || '',
+          recipient_name: fd.get('recipient_name') || '',
+          hero_title: fd.get('hero_title') || '',
+          hero_subtitle: fd.get('hero_subtitle') || '',
+          love_message: fd.get('love_message') || '',
+          story_or_memory: fd.get('story_or_memory') || '',
+          reasons: fd.getAll('reasons').filter(Boolean),
+          final_message: fd.get('final_message') || '',
+          date_invite_text: fd.get('date_invite_text') || '',
+          music_link: fd.get('music_link') || '',
+          memory_location_1: fd.get('memory_location_1') || '',
+          memory_title_1: fd.get('memory_title_1') || '',
+          memory_content_1: fd.get('memory_content_1') || '',
+          memory_location_2: fd.get('memory_location_2') || '',
+          memory_title_2: fd.get('memory_title_2') || '',
+          memory_content_2: fd.get('memory_content_2') || '',
+          memory_location_3: fd.get('memory_location_3') || '',
+          memory_title_3: fd.get('memory_title_3') || '',
+          memory_content_3: fd.get('memory_content_3') || '',
+          memory_location_4: fd.get('memory_location_4') || '',
+          memory_title_4: fd.get('memory_title_4') || '',
+          memory_content_4: fd.get('memory_content_4') || '',
+          photo_links: photoLinks,
+          video_link: videoLink,
+          cloudinary_cloud_name: cloudName,
+          cloudinary_folder: folder
+        };
+
+        statusText.textContent = 'გენერირდება საიტი...';
+        const res = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.url) throw new Error(data.error || 'შეცდომა გენერაციაზე');
 
         resultLink.href = data.url;
         resultLink.textContent = data.url;
         new QRious({ element: qrCanvas, value: data.url, size: 220 });
         resultSection.classList.remove('hidden');
-        statusText.textContent = '✅ დასრულდა';
+
+        statusText.textContent = data.slug !== payload.site_slug
+          ? `✅ დასრულდა (სახელი დაკავებული იყო, შეიქმნა: ${data.slug})`
+          : '✅ დასრულდა';
       } catch (err) {
         statusText.textContent = err.message || 'შეცდომა';
         statusText.className = 'text-sm text-red-700';

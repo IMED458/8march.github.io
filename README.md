@@ -1,12 +1,13 @@
 # 8march Site Generator
 
-პროექტი დეველოპერებისთვის: ფორმიდან არჩევ შაბლონს, უთითებ საიტის სახელს, ტვირთავ ფოტოებს/ვიდეოს და მიიღებ ავტომატურად დაგენერირებულ გვერდს + ლინკს + QR კოდს.
+პროექტი დეველოპერებისთვის: ფორმიდან არჩევ შაბლონს, უთითებ საიტის სახელს, ტვირთავ ფოტოებს/ვიდეოს Cloudinary-ზე და იღებ ავტომატურად დაგენერირებულ გვერდს + ლინკს + QR კოდს.
 
 ## რას აკეთებს
 - 3 შაბლონი: `Girlfriend`, `Wife`, `The Map of Stars`
 - საიტის slug (მაგ: `nino-gift`)
-- ატვირთვა: ფოტოები (მაქს 15), ვიდეო (optional)
+- ატვირთვა: ფოტოები (მაქს 15), ვიდეო (optional) პირდაპირ Cloudinary-ზე
 - გენერაცია: `public/gift/<slug>/index.html`
+- მონაცემების დამახსოვრება: `public/gift/<slug>/data.json`
 - შედეგი API-დან: გენერირებული URL
 - UI-ზე QR კოდის გენერაცია
 - ყველა დაგენერირებულ გვერდზე favicon: `📩`
@@ -27,14 +28,14 @@ npm run dev
 
 ## API
 ### POST `/api/generate`
-`multipart/form-data`
+`application/json`
 
 ძირითადი ველები:
 - `site_slug` (required)
 - `template_choice` (`girlfriend` | `wife` | `map-of-stars`)
 - `sender_name`, `recipient_name`
-- `photos` (max 15)
-- `video` (optional)
+- `photo_links` (max 15, Cloudinary secure_url list)
+- `video_link` (optional, Cloudinary secure_url)
 
 დამატებითი ველები template-ის მიხედვით: ტექსტები, reasons, memory blocks.
 

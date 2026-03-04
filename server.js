@@ -1,8 +1,6 @@
 import express from 'express';
-import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import crypto from 'crypto';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,10 +9,12 @@ const BASE_URL = process.env.BASE_URL || '';
 const ROOT = path.resolve();
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const GIFT_DIR = path.join(PUBLIC_DIR, 'gift');
-const TMP_DIR = path.join(ROOT, '.uploads_tmp');
 
 fs.mkdirSync(GIFT_DIR, { recursive: true });
-fs.mkdirSync(TMP_DIR, { recursive: true });
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(PUBLIC_DIR));
 
 function esc(str = '') {
   return String(str)
@@ -29,21 +29,34 @@ function validSlug(slug) {
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug);
 }
 
-function safeName(name) {
-  const ext = path.extname(name).toLowerCase().slice(0, 10);
-  const base = path
-    .basename(name, path.extname(name))
+function normalizeSlug(input) {
+  return String(input || '')
+    .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9-_]+/g, '-')
+    .replace(/[^a-z0-9-]/g, '-')
     .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 80);
-  return `${base || 'file'}-${crypto.randomBytes(4).toString('hex')}${ext}`;
+    .replace(/^-|-$/g, '');
+}
+
+function resolveUniqueSlug(base) {
+  let candidate = base;
+  let i = 2;
+  while (fs.existsSync(path.join(GIFT_DIR, candidate))) {
+    candidate = `${base}-${i}`;
+    i += 1;
+  }
+  return candidate;
 }
 
 function toArray(v) {
   if (!v) return [];
   return Array.isArray(v) ? v : [v];
+}
+
+function onlyHttpLinks(items) {
+  return toArray(items)
+    .map((x) => String(x || '').trim())
+    .filter((x) => /^https?:\/\//i.test(x));
 }
 
 function ytEmbed(url) {
@@ -155,113 +168,76 @@ function renderStars(data) {
   return `<!doctype html><html lang="ka"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>The Map of Stars</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%A9%3C/text%3E%3C/svg%3E"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Fira+Go:wght@300;400;500;700&display=swap" rel="stylesheet"><style>${baseStyles('stars')}</style></head><body><main class="container"><header class="hero"><span class="badge">The Map of Stars ✨</span><h1>${esc(data.hero_title || 'The Map of Stars')}</h1><p>${esc(data.hero_subtitle || `${data.sender_name}-სგან ${data.recipient_name}-ს`)}</p></header><section class="card"><h2>ვარსკვლავური ქრონოლოგია</h2><div class="stars-grid">${blocks}</div></section>${gallerySection(data.photos)}${videoSection(data.video)}${musicSection(data.music_link)}<section class="card"><h2>პაემანზე მოწვევა</h2><p>${esc(data.date_invite_text || data.memories[data.memories.length - 1]?.content || '')}</p></section><footer class="footer">გილოცავ 8 მარტს, ჩემო ვარსკვლავო! 📩</footer></main></body></html>`;
 }
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, TMP_DIR),
-  filename: (_req, file, cb) => cb(null, safeName(file.originalname))
-});
+app.post('/api/generate', (req, res) => {
+  try {
+    const b = req.body || {};
+    const rawSlug = normalizeSlug(b.site_slug);
 
-const upload = multer({
-  storage,
-  limits: { fileSize: 100 * 1024 * 1024, files: 17 },
-  fileFilter: (_req, file, cb) => {
-    const ok = file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/');
-    cb(ok ? null : new Error('Only image/video files are allowed'), ok);
-  }
-});
-
-app.use(express.static(PUBLIC_DIR));
-
-app.post(
-  '/api/generate',
-  upload.fields([
-    { name: 'photos', maxCount: 15 },
-    { name: 'video', maxCount: 1 }
-  ]),
-  (req, res) => {
-    try {
-      const b = req.body || {};
-      const slug = String(b.site_slug || '').trim().toLowerCase();
-
-      if (!validSlug(slug)) {
-        return res.status(400).json({ error: 'საიტის სახელი არასწორია. გამოიყენე მხოლოდ a-z, 0-9 და დეფისი (-).' });
-      }
-
-      const template = String(b.template_choice || 'girlfriend');
-      const photosInput = req.files?.photos || [];
-      const videoInput = (req.files?.video || [])[0] || null;
-
-      if (photosInput.length > 15) {
-        return res.status(400).json({ error: 'მაქსიმუმ 15 ფოტო.' });
-      }
-
-      const siteDir = path.join(GIFT_DIR, slug);
-      if (fs.existsSync(siteDir)) {
-        return res.status(409).json({ error: 'ეს საიტის სახელი უკვე დაკავებულია.' });
-      }
-
-      const photosDir = path.join(siteDir, 'assets', 'photos');
-      const videoDir = path.join(siteDir, 'assets', 'video');
-      fs.mkdirSync(photosDir, { recursive: true });
-      fs.mkdirSync(videoDir, { recursive: true });
-
-      const photoLinks = photosInput.map((f) => {
-        const target = path.join(photosDir, f.filename);
-        fs.renameSync(f.path, target);
-        return `/gift/${slug}/assets/photos/${f.filename}`;
-      });
-
-      let videoLink = '';
-      if (videoInput) {
-        const target = path.join(videoDir, videoInput.filename);
-        fs.renameSync(videoInput.path, target);
-        videoLink = `/gift/${slug}/assets/video/${videoInput.filename}`;
-      }
-
-      const reasons = toArray(b.reasons).map((x) => String(x).trim()).filter(Boolean);
-      const memories = [1, 2, 3, 4].map((i) => ({
-        location: String(b[`memory_location_${i}`] || '').trim(),
-        title: String(b[`memory_title_${i}`] || '').trim(),
-        content: String(b[`memory_content_${i}`] || '').trim()
-      })).filter((m) => m.location || m.title || m.content);
-
-      const data = {
-        sender_name: String(b.sender_name || '').trim(),
-        recipient_name: String(b.recipient_name || '').trim(),
-        hero_title: String(b.hero_title || '').trim(),
-        hero_subtitle: String(b.hero_subtitle || '').trim(),
-        love_message: String(b.love_message || '').trim(),
-        story_or_memory: String(b.story_or_memory || '').trim(),
-        reasons,
-        final_message: String(b.final_message || '').trim(),
-        date_invite_text: String(b.date_invite_text || '').trim(),
-        music_link: String(b.music_link || '').trim(),
-        photos: photoLinks,
-        video: videoLink,
-        memories
-      };
-
-      let html = '';
-      if (template === 'wife') html = renderWife(data);
-      else if (template === 'map-of-stars') html = renderStars(data);
-      else html = renderGirlfriend(data);
-
-      fs.writeFileSync(path.join(siteDir, 'index.html'), html, 'utf-8');
-
-      const proto = req.headers['x-forwarded-proto']?.toString().split(',')[0] || req.protocol;
-      const host = req.get('host');
-      const base = BASE_URL || `${proto}://${host}`;
-
-      return res.json({
-        ok: true,
-        slug,
-        url: `${base}/gift/${slug}/`
-      });
-    } catch (err) {
-      console.error(err);
-      return res.status(500).json({ error: 'გენერაციისას დაფიქსირდა შეცდომა.' });
+    if (!validSlug(rawSlug)) {
+      return res.status(400).json({ error: 'საიტის სახელი არასწორია. გამოიყენე მხოლოდ a-z, 0-9 და დეფისი (-).' });
     }
+
+    const template = String(b.template_choice || 'girlfriend');
+    const photoLinks = onlyHttpLinks(b.photo_links).slice(0, 15);
+    const videoLink = onlyHttpLinks(b.video_link)[0] || '';
+
+    if (!photoLinks.length) {
+      return res.status(400).json({ error: 'აუცილებელია მინიმუმ 1 ფოტო.' });
+    }
+
+    const slug = resolveUniqueSlug(rawSlug);
+    const siteDir = path.join(GIFT_DIR, slug);
+    fs.mkdirSync(siteDir, { recursive: true });
+
+    const reasons = toArray(b.reasons).map((x) => String(x).trim()).filter(Boolean);
+    const memories = [1, 2, 3, 4].map((i) => ({
+      location: String(b[`memory_location_${i}`] || '').trim(),
+      title: String(b[`memory_title_${i}`] || '').trim(),
+      content: String(b[`memory_content_${i}`] || '').trim()
+    })).filter((m) => m.location || m.title || m.content);
+
+    const data = {
+      sender_name: String(b.sender_name || '').trim(),
+      recipient_name: String(b.recipient_name || '').trim(),
+      hero_title: String(b.hero_title || '').trim(),
+      hero_subtitle: String(b.hero_subtitle || '').trim(),
+      love_message: String(b.love_message || '').trim(),
+      story_or_memory: String(b.story_or_memory || '').trim(),
+      reasons,
+      final_message: String(b.final_message || '').trim(),
+      date_invite_text: String(b.date_invite_text || '').trim(),
+      music_link: String(b.music_link || '').trim(),
+      photos: photoLinks,
+      video: videoLink,
+      memories,
+      created_at: new Date().toISOString(),
+      template,
+      slug
+    };
+
+    let html = '';
+    if (template === 'wife') html = renderWife(data);
+    else if (template === 'map-of-stars') html = renderStars(data);
+    else html = renderGirlfriend(data);
+
+    fs.writeFileSync(path.join(siteDir, 'index.html'), html, 'utf-8');
+    fs.writeFileSync(path.join(siteDir, 'data.json'), JSON.stringify(data, null, 2), 'utf-8');
+
+    const proto = req.headers['x-forwarded-proto']?.toString().split(',')[0] || req.protocol;
+    const host = req.get('host');
+    const base = BASE_URL || `${proto}://${host}`;
+
+    return res.json({
+      ok: true,
+      slug,
+      requested_slug: rawSlug,
+      url: `${base}/gift/${slug}/`
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'გენერაციისას დაფიქსირდა შეცდომა.' });
   }
-);
+});
 
 app.listen(PORT, () => {
   console.log(`8march generator running on http://localhost:${PORT}`);
