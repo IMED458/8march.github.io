@@ -272,6 +272,7 @@
         const fd = new FormData(form);
         const payload = {
           site_slug: fd.get('site_slug') || '',
+          overwrite_existing: true,
           template_choice: fd.get('template_choice') || 'girlfriend',
           sender_name: fd.get('sender_name') || '',
           recipient_name: fd.get('recipient_name') || '',
@@ -314,7 +315,7 @@
         resultSection.classList.remove('hidden');
 
         statusText.textContent = data.slug !== payload.site_slug
-          ? `✅ დასრულდა (სახელი დაკავებული იყო, შეიქმნა: ${data.slug})`
+          ? `✅ დასრულდა (განახლდა/შეიქმნა: ${data.slug})`
           : '✅ დასრულდა';
       } catch (err) {
         statusText.textContent = err.message || 'შეცდომა';

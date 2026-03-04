@@ -48,6 +48,12 @@ function resolveUniqueSlug(base) {
   return candidate;
 }
 
+function asBool(v) {
+  if (typeof v === 'boolean') return v;
+  const s = String(v || '').toLowerCase().trim();
+  return s === 'true' || s === '1' || s === 'yes' || s === 'on';
+}
+
 function toArray(v) {
   if (!v) return [];
   return Array.isArray(v) ? v : [v];
@@ -178,6 +184,7 @@ app.post('/api/generate', (req, res) => {
     }
 
     const template = String(b.template_choice || 'girlfriend');
+    const overwriteExisting = asBool(b.overwrite_existing);
     const photoLinks = onlyHttpLinks(b.photo_links).slice(0, 15);
     const videoLink = onlyHttpLinks(b.video_link)[0] || '';
 
@@ -185,8 +192,20 @@ app.post('/api/generate', (req, res) => {
       return res.status(400).json({ error: 'აუცილებელია მინიმუმ 1 ფოტო.' });
     }
 
-    const slug = resolveUniqueSlug(rawSlug);
-    const siteDir = path.join(GIFT_DIR, slug);
+    let slug = rawSlug;
+    let overwritten = false;
+    let siteDir = path.join(GIFT_DIR, slug);
+
+    if (fs.existsSync(siteDir)) {
+      if (overwriteExisting) {
+        fs.rmSync(siteDir, { recursive: true, force: true });
+        overwritten = true;
+      } else {
+        slug = resolveUniqueSlug(rawSlug);
+        siteDir = path.join(GIFT_DIR, slug);
+      }
+    }
+
     fs.mkdirSync(siteDir, { recursive: true });
 
     const reasons = toArray(b.reasons).map((x) => String(x).trim()).filter(Boolean);
@@ -231,6 +250,7 @@ app.post('/api/generate', (req, res) => {
       ok: true,
       slug,
       requested_slug: rawSlug,
+      overwritten,
       url: `${base}/gift/${slug}/`
     });
   } catch (err) {
