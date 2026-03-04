@@ -253,7 +253,10 @@ app.post('/api/generate', (req, res) => {
     else if (template === 'map-of-stars') html = renderStars(data);
     else html = renderGirlfriend(data);
 
+    const versionId = Date.now();
+    const versionedPageName = `page-${versionId}.html`;
     fs.writeFileSync(path.join(siteDir, 'index.html'), html, 'utf-8');
+    fs.writeFileSync(path.join(siteDir, versionedPageName), html, 'utf-8');
     fs.writeFileSync(path.join(siteDir, 'data.json'), JSON.stringify(data, null, 2), 'utf-8');
 
     const proto = req.headers['x-forwarded-proto']?.toString().split(',')[0] || req.protocol;
@@ -265,7 +268,8 @@ app.post('/api/generate', (req, res) => {
       slug,
       requested_slug: rawSlug,
       overwritten,
-      url: `${base}/gift/${slug}/?v=${Date.now()}`
+      url: `${base}/gift/${slug}/${versionedPageName}`,
+      latest_url: `${base}/gift/${slug}/`
     });
   } catch (err) {
     console.error(err);
