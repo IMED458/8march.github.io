@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ka">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>8 მარტის მისალოცი</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%A9%3C/text%3E%3C/svg%3E">
+  <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Noto Sans Georgian", system-ui, sans-serif; background: #fff; color: #0f172a; }
+    .container { max-width: 1080px; margin: 0 auto; padding: 24px 16px; }
+    .hero { text-align: center; padding: 48px 16px; border-radius: 24px; margin-bottom: 20px; }
+    .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 18px; }
+    .gallery img, .gallery video { width: 100%; height: 220px; object-fit: cover; border-radius: 14px; }
+    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 18px; padding: 18px; margin: 12px 0; }
+    .muted { color: #475569; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip { padding: 8px 12px; border-radius: 999px; font-size: 14px; }
+    .timeline { display: grid; gap: 12px; }
+    .star { border-left: 3px solid #f3cc4d; padding-left: 12px; }
+    a.btn { display: inline-block; padding: 10px 14px; border-radius: 999px; text-decoration: none; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <main id="app" class="container"></main>
+
+  <script>
+    const app = document.getElementById('app');
+
+    function q(name) {
+      return new URLSearchParams(window.location.search).get(name) || '';
+    }
+    function escapeHtml(str = '') {
+      return String(str)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+    function asList(v) {
+      if (!v) return [];
+      return Array.isArray(v) ? v : [v];
+    }
+    function unpack(compact) {
+      return {
+        site_slug: compact.s || '',
+        template_choice: compact.t || 'girlfriend',
+        sender_name: compact.a || '',
+        recipient_name: compact.b || '',
+        hero_title: compact.c || '',
+        hero_subtitle: compact.d || '',
+        love_message: compact.e || '',
+        story_or_memory: compact.f || '',
+        reasons: asList(compact.r).filter(Boolean),
+        final_message: compact.g || '',
+        date_invite_text: compact.i || '',
+        music_link: compact.m || '',
+        photo_links: asList(compact.p).filter(Boolean),
+        video_link: compact.v || '',
+        memories: asList(compact.x).map((m) => ({
+          location: m?.[0] || '',
+          title: m?.[1] || '',
+          content: m?.[2] || ''
+        })).filter((m) => m.location || m.title || m.content)
+      };
+    }
+    function mediaBlock(data) {
+      const photos = data.photo_links
+        .map((u) => `<img src="${escapeHtml(u)}" loading="lazy" alt="photo">`)
+        .join('');
+      const video = data.video_link
+        ? `<div class="card"><video controls src="${escapeHtml(data.video_link)}"></video></div>`
+        : '';
+      return `
+        ${video}
+        <div class="gallery">${photos || ''}</div>
+      `;
+    }
+    function musicBlock(link) {
+      if (!link) return '';
+      return `<a class="btn" style="background:#0f172a;color:#fff" href="${escapeHtml(link)}" target="_blank" rel="noopener">🎵 სიმღერის გახსნა</a>`;
+    }
+    function renderGirlfriend(data) {
+      const reasons = data.reasons.map((r) => `<span class="chip" style="background:#ffe4e6;color:#9f1239">${escapeHtml(r)}</span>`).join('');
+      return `
+        <section class="hero" style="background:linear-gradient(135deg,#ffe4e6,#fdf2f8)">
+          <h1 style="margin:0 0 10px;font-size:42px">${escapeHtml(data.hero_title || '8 მარტს გილოცავ')}</h1>
+          <p style="font-size:26px;margin:0 0 10px">💖 ${escapeHtml(data.recipient_name || '')}</p>
+          <p class="muted">${escapeHtml(data.hero_subtitle || '')}</p>
+        </section>
+        <section class="card"><h2>სიყვარულის წერილი</h2><p>${escapeHtml(data.love_message)}</p></section>
+        <section class="card"><h2>ჩვენი ისტორია</h2><p>${escapeHtml(data.story_or_memory)}</p></section>
+        <section class="card"><h2>რატომ მიყვარხარ</h2><div class="chips">${reasons}</div></section>
+        <section class="card"><h2>ფინალური ტექსტი</h2><p>${escapeHtml(data.final_message)}</p></section>
+        <section class="card"><h2>მოწვევა</h2><p>${escapeHtml(data.date_invite_text)}</p>${musicBlock(data.music_link)}</section>
+        ${mediaBlock(data)}
+      `;
+    }
+    function renderWife(data) {
+      return `
+        <section class="hero" style="background:linear-gradient(135deg,#fef9c3,#ffedd5)">
+          <h1 style="margin:0 0 10px;font-size:42px">${escapeHtml(data.hero_title || 'გილოცავ ქალთა დღეს')}</h1>
+          <p style="font-size:26px;margin:0">✨ ${escapeHtml(data.recipient_name || '')}</p>
+        </section>
+        <section class="card"><h2>წერილი</h2><p>${escapeHtml(data.love_message)}</p></section>
+        <section class="card"><h2>მოგონება</h2><p>${escapeHtml(data.story_or_memory)}</p></section>
+        <section class="card"><h2>ფინალი</h2><p>${escapeHtml(data.final_message || data.date_invite_text)}</p>${musicBlock(data.music_link)}</section>
+        ${mediaBlock(data)}
+      `;
+    }
+    function renderStars(data) {
+      const stars = data.memories.map((m, i) => `
+        <div class="card star">
+          <small class="muted">ვარსკვლავი ${i + 1}: ${escapeHtml(m.location)}</small>
+          <h3 style="margin:8px 0">${escapeHtml(m.title)}</h3>
+          <p>${escapeHtml(m.content)}</p>
+        </div>
+      `).join('');
+      return `
+        <section class="hero" style="background:linear-gradient(135deg,#0f172a,#111827);color:#fff">
+          <h1 style="margin:0 0 8px;font-size:42px">The Map of Stars</h1>
+          <p style="margin:0;color:#cbd5e1">${escapeHtml(data.recipient_name || '')}</p>
+        </section>
+        <section class="timeline">${stars || '<p class="muted">მოგონებები არ არის შევსებული.</p>'}</section>
+        <section class="card"><h2>მოწვევა</h2><p>${escapeHtml(data.date_invite_text || data.final_message)}</p>${musicBlock(data.music_link)}</section>
+        ${mediaBlock(data)}
+      `;
+    }
+
+    try {
+      const packed = q('d');
+      if (!packed) throw new Error('ლინკში მონაცემები ვერ მოიძებნა.');
+      const json = LZString.decompressFromEncodedURIComponent(packed);
+      if (!json) throw new Error('მონაცემების დეკოდირება ვერ მოხერხდა.');
+      const compact = JSON.parse(json);
+      const data = unpack(compact);
+
+      if (!data.photo_links.length) {
+        throw new Error('ფოტოები არ მოიძებნა.');
+      }
+
+      if (data.template_choice === 'map-of-stars') {
+        app.innerHTML = renderStars(data);
+      } else if (data.template_choice === 'wife') {
+        app.innerHTML = renderWife(data);
+      } else {
+        app.innerHTML = renderGirlfriend(data);
+      }
+      document.title = escapeHtml(data.hero_title || '8 მარტის მისალოცი');
+    } catch (err) {
+      app.innerHTML = `<section class="card"><h2>შეცდომა</h2><p>${escapeHtml(err?.message || 'მონაცემები დაზიანებულია.')}</p></section>`;
+    }
+  </script>
+</body>
+</html>
